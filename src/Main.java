@@ -4,6 +4,7 @@ import java.util.Random;
 
 public class Main {
     static int score = 0;
+    static final int SEARCH_DEPTH = 3; 
     public static void main(String[] args) {
         int[][] board = new int[4][4];
         Random random = new Random();
@@ -268,7 +269,7 @@ public class Main {
                 }
             }
         }
-        
+
         return emptyCount;
     }
 
@@ -293,27 +294,19 @@ public class Main {
         String[] directions = {"w", "a", "s", "d"};
 
         String bestMove = null;
-        int bestEvaluation = -1;
+        double bestValue = Double.NEGATIVE_INFINITY;
 
         for(String direction : directions) {
-            int[][] simulatedBoard = copyBoard(board);
-
-            int savedScore = score;
-
-            try {
-                applyMove(simulatedBoard, direction);
-            } finally {
-                score = savedScore;
-            }
+            int[][] simulatedBoard = simulateMove(board, direction);
 
             if(Arrays.deepEquals(board, simulatedBoard)) {
                 continue;
             }
-            
-            int evaluation = evaluateBoard(simulatedBoard);
 
-            if(evaluation > bestEvaluation) {
-                bestEvaluation = evaluation;
+            double value = expectedSpawnValue(simulatedBoard, SEARCH_DEPTH - 1);
+
+            if(value > bestValue) {
+                bestValue = value;
                 bestMove = direction;
             }
         }
@@ -355,7 +348,7 @@ public class Main {
             String direction = findBestMove(board);
 
             if(direction == null) {
-                System.out.print("Nema vise mogucih poteza.");
+                System.out.println("Nema vise mogucih poteza.");
                 return;
             }
 
@@ -366,5 +359,91 @@ public class Main {
             System.out.println("Poeni: " + score);
             printBoard(board);
         }
+    }
+
+    public static int[][] simulateMove(int[][] board, String direction) {
+        int[][] simulatedBoard = copyBoard(board);
+        int savedScore = score;
+
+        try {
+            applyMove(simulatedBoard, direction);
+        } finally {
+            score = savedScore;
+        }
+
+        return simulatedBoard;
+    }
+
+    public static double bestFutureValue(int[][] board, int depth) {
+        if(!canMove(board)) {
+            return -1000.0;
+        }
+
+        if(depth == 0) {
+            return evaluateBoard(board);
+        }
+
+        String[] directions = {"w", "a", "s", "d"};
+        double bestValue = Double.NEGATIVE_INFINITY;
+
+        for(String direction : directions) {
+            int[][] simulatedBoard = simulateMove(board, direction);
+
+            if(Arrays.deepEquals(board, simulatedBoard)) {
+                continue;
+            }
+
+            double value = expectedSpawnValue(simulatedBoard, depth - 1);
+
+            if(value > bestValue) {
+                bestValue = value;
+            }
+        }
+
+        return bestValue;
+    }
+
+    public static double expectedSpawnValue(int[][] board, int depth) {
+        if(depth == 0) {
+            return evaluateBoard(board);
+        }
+
+        int emptyCount = 0;
+    
+        for (int row = 0; row < board.length; row++) {
+            for (int column = 0; column < board[row].length; column++) {
+                if (board[row][column] == 0) {
+                    emptyCount++;
+                }
+            }
+        }
+
+        if (emptyCount == 0) {
+            return bestFutureValue(board, depth);
+        }
+         
+        double totalValue = 0.0;
+
+        for (int row = 0; row < board.length; row++) {
+            for (int column = 0; column < board[row].length; column++) {
+                if (board[row][column] != 0) {
+                    continue;
+                }
+
+                int[][] withTwo = copyBoard(board);
+                withTwo[row][column] = 2;
+
+                double valueWithTwo = bestFutureValue(withTwo, depth);
+
+                int[][] withFour = copyBoard(board);
+                withFour[row][column] = 4;
+
+                double valueWithFour = bestFutureValue(withFour, depth);
+
+                totalValue += 0.9 * valueWithTwo + 0.1 * valueWithFour;
+            }
+        }
+
+        return totalValue / emptyCount;
     }
 }
